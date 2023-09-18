@@ -1,0 +1,11 @@
+'use strict';
+import path from 'node:path';
+
+export default {
+  simpleFile: {
+    latency: 500,
+    basedirs: [
+      path.resolve(__dirname, 'demo')
+    ]
+  }
+};

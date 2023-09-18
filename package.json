@@ -1,0 +1,40 @@
+{
+  "name": "admin-spa-skeleton",
+  "version": "1.0.0",
+  "description": "Skeleton of SPA for Administration Apps",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "spa.dev": "npx vite --host 0.0.0.0 --port 8080",
+    "build": "npx vite build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ppoi/admin-spa-skeleton.git"
+  },
+  "author": "PPOI <ppoi@tsukua-bunko.org>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/ppoi/admin-spa-skeleton/issues"
+  },
+  "homepage": "https://github.com/ppoi/admin-spa-skeleton#readme",
+  "dependencies": {
+    "admin-lte": "^3.2.0",
+    "datatables.net": "^1.13.6",
+    "datatables.net-bs4": "^1.13.6",
+    "datatables.net-select-bs4": "^1.7.0",
+    "jquery": "^3.7.1",
+    "lodash-es": "^4.17.21",
+    "path-to-regexp": "^6.2.1",
+    "rawth": "^2.1.2",
+    "summernote": "^0.8.20",
+    "svelte": "^4.2.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-inject": "^5.0.3",
+    "@sveltejs/vite-plugin-svelte": "^2.4.5",
+    "esm": "^3.2.25",
+    "sass": "^1.66.1",
+    "vite": "^4.4.9"
+  }
+}
