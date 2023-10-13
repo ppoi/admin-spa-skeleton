@@ -39,8 +39,10 @@
   onMount(()=>{
     return ()=>{
       console.log('modal destroyed');
-      jQuery(modal).modal('dispose');
-      modal = null;
+      hide(()=>{
+        bsModal.modal('dispose');
+        console.log('disposed');
+      });
     }
   });
   onDestroy(()=>{
