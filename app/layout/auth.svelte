@@ -1,8 +1,9 @@
 <script>
-  import { activeSession } from "../app.svelte";
+  import session from "../core/session";
   export let permission;
+  $: console.log('[auth] permission', permission);
 </script>
 
-{#if $activeSession.authz(permission)}
+{#if !session.isAnonymous()}
 <slot></slot>
 {/if}

@@ -1,5 +1,5 @@
 <script>
-  import Page from "../../router/page.svelte";
+  import Page from "../../layout/page.svelte";
   import ListPage from "./list-page.svelte";
   import EditPage from "./edit-page.svelte";
   import DetailPage from "./detail-page.svelte";

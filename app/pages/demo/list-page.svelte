@@ -2,12 +2,13 @@
   import Breadcrumb from '../../widgets/breadcrumb.svelte';
   import PageContent from "../../layout/page-content.svelte";
   import Datatables from '../../widgets/datatables.svelte';
-  import { navigate } from '../../router/pages.svelte';
+  import { navigate } from '~/app/core/router';
   import { beforeUpdate, onMount, onDestroy } from 'svelte';
+  import session from '~/app/core/session';
 
   const tableOpts = {
     data: async ()=>{
-      return await fetch('/api/demo').then(res=>{
+      return await session.callApi('/demo').then(res=>{
         if(res.ok) {
           return res.json();
         } else {
@@ -44,5 +45,5 @@
   <div class="content-navimenu">
     <a href="/demo/new"><i class="text-green fa fa-fw fa-plus-circle"></i>作成</a>
   </div>
-  <Datatables {...tableOpts} on:row_clicked="{rowClicked}" tabIndex="1"></Datatables>
+  <Datatables {...tableOpts} on:rowclick="{rowClicked}" tabIndex="1"></Datatables>
 </PageContent>
