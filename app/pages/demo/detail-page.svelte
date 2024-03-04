@@ -4,18 +4,19 @@
   import Breadcrumb from "../../widgets/breadcrumb.svelte";
   import FormItem from "../../layout/form-item.svelte";
   import { loading } from "../../widgets/loading-screen.svelte";
+  import session from "~/app/core/session";
 
-  export let route;
-  $: console.log('route', route)
+  export let params;
+  $: console.log('route', params)
 
-  let itemId = route.params.itemId;
+  let itemId = params.params.itemId;
   let pageTitle = '';
   let data = {};
 
   onMount(()=>{
     // 非同期初期化処理がある場合、最初にローディング画面を表示
     $loading = true;
-    fetch(`/api/demo/${itemId}`).then(res=>{
+    session.callApi(`/demo/${itemId}`).then(res=>{
       if(res.ok) {
         return res.json();
       } else {

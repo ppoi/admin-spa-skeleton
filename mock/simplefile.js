@@ -2,7 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { isNumber } from 'lodash-es';
+import { isNumber, merge } from 'lodash-es';
 import { sendFile } from './fsutils';
 
 class SimpleFile {
@@ -15,6 +15,7 @@ class SimpleFile {
 
   configure(config) {
     console.log('incoming config', config);
+    merge(this.config, config);
     return new Promise((resolve, reject)=>{
       //latency
       if(isNumber(config.latency)) {

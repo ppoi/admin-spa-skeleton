@@ -1,5 +1,7 @@
-<script>
+<script context="module">
   import jQuery from 'jquery';
+</script>
+<script>
   import { createEventDispatcher, onDestroy, onMount } from "svelte";
 
   export let size = "lg";

@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { navigate } from '~/app/core/router';
   import PageContent from '../../layout/page-content.svelte';
   import Breadcrumb from '../../widgets/breadcrumb.svelte';
   import Form from '../../layout/form.svelte';
@@ -7,10 +8,10 @@
   import { beginEditing, createValidator } from '../../utils/validation';
   import { loading } from '../../widgets/loading-screen.svelte';
   import BasicModal from "../../widgets/basic-modal.svelte";
-    import { navigate } from '../../router/pages.svelte';
+  import session from '~/app/core/session';
 
-  export let route;
-  $: console.log(route);
+  export let params;
+  $: console.log(params);
 
   /**
    * データID
@@ -36,10 +37,10 @@
   let modal1;
 
   onMount(()=>{
-    itemId = route.params.itemId;
+    itemId = params.params.itemId;
     if(itemId != null) {
       $loading = true;
-      fetch(`/api/demo/${itemId}`).then(res=>{
+      session.callApi(`/demo/${itemId}`).then(res=>{
         if(res.ok) {
           return res.json();
         } else {

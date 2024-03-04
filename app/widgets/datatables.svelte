@@ -1,7 +1,9 @@
 <script>
-  import jQuery from 'jquery';
+  import DataTables from 'datatables.net-bs4';
+  import 'datatables.net-select-bs4';
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { assign } from 'lodash-es';
+  import jquery from 'jquery';
 
   const DEFAULT_LANGUAGE = {
     "sEmptyTable":"テーブルにデータがありません",
@@ -69,6 +71,11 @@
    */
    export let lengthMenu = [10, 25, 50, 100];
   /**
+   * 1ページの表示件数
+   * @type {number}
+   */
+   export let pageLength = 50;
+   /**
    * ページングスタイル
    * @type {('numbers'|'simple'|'simple_numbers'|'full'|'full_numbers'|'first_last_numbers')}
   */
@@ -79,15 +86,10 @@
    */
   export let paging = true;
   /**
-   * 1ページの表示件数
-   * @type {number}
-   */
-  export let pageLength = 50;
-  /**
    * 選択機能ON/OFF
    * @type {boolean}
    */
-  export let select = false;
+  export let select = undefined;
   /**
    * タブインデックス
    * @type {number}
@@ -96,146 +98,135 @@
   /**
    * 行生成コールバック
    */
-  export let createdRow = null;
+  export let createdRow = undefined;
   /**
    * フッターコールバック
    * @type {Function}
    */
-  export let footerCallback = null;
+  export let footerCallback = undefined;
   /**
    * 検索文字列
    * @type {string}
    */
   export let searchText = '';
 
+  let tableOpts = {
+    ajax: (arg1, callback, settings)=>{
+      console.log('[datatables] fetch data');
+      new Promise(async (resolve, reject)=>{
+        if(typeof data !== 'function') {
+          resolve(data);
+        } else {
+          try {
+            resolve(await data());
+          } catch(e) {
+            reject(e);
+          }
+        }
+      }).then(data=>{
+        console.log('[datatables] data_complete', data);
+        callback({data:data});
+        dispatcher('data_completed', data);
+      }).catch(reason=>{
+        console.log('[datatables] data_failed', reason);
+        callback({data:[]})
+        dispatcher('data_failed', reason);
+      });
+    },
+    initComplete: ()=>{
+      dispatcher('datatables_completed');
+    }
+  };
+
   const dispatcher = createEventDispatcher();
 
+  /**
+   * @type {HTMLTableElement}
+   */
   let container;
-  let observer;
+  /**
+   * @type {import('datatables.net-bs5').Api}
+   */
   export let api = null;
 
-  onDestroy(()=>{
-    console.log('destroyed');
+  function destroyDataTables() {
+    console.log('[datatables] destroy previous instance.', DataTables.tables().length);
     if(api) {
       api.destroy();
-      api = null;
+      jquery(container).off().empty();
     }
-    if(observer) {
-      observer.unobserve(container);
-    }
-  });
-  onMount(()=>{
-    console.log('mounted');
-    observer = new ResizeObserver((entries)=>{
-      //scrollX:true時のヘッダ描画不正対策
-      if(api) {
-        console.log('try adjustment');
-        api.columns.adjust();
-      }
-    });
-    observer.observe(container);
-
-    return ()=>{
-      console.log('cleanup');
-    }
-  });
-
-  /**
-   * @param {Object} data - unuse.
-   * @param {Function} callback Datatable's callback function
-   * @param {Object} [settings] - unuse
-   */
-  async function fetchData(_data, callback, settings) {
-    try {
-      let rows;
-      if(typeof data !== 'function') {
-        rows = data;
-      } else {
-        rows = await data();
-      }
-      callback(data);
-      dispatcher('data_successed', rows);
-    } catch(e) {
-      callback([]);
-      dispatcher('data_failed', e);
-    }
+    console.log('[datatables] dattables instance is destroyed', DataTables.tables().length);
   }
 
-  $: if(container) {
-    if(api) {
-      jQuery(container).off();
-      api.destroy();
-    }
-    api = jQuery(container).on('click', 'tbody td', (ev)=>{
-      let row = api.row(ev.target);
-      if(row.length > 0) {
-        console.log('row clicked!!!!', row.data());
-        ev.preventDefault();
-        dispatcher('row_selected', row.data()); //Deprecated
-        dispatcher('row_clicked', row.data());
-      }
-    }).DataTable({
-      ajax: (arg1, callback, settings)=>{
-        console.log('fetch data');
-        new Promise(async (resolve, reject)=>{
-          if(typeof data !== 'function') {
-            resolve(data);
-          } else {
-            try {
-              resolve(await data());
-            } catch(e) {
-              reject(e);
+  onDestroy(()=>{
+    destroyDataTables();
+    console.log('[datatables] tag destroyed');
+  });
+  onMount(()=>{
+    console.log('[datatables] mounted');
+  });
+
+  $: {
+    if(container) {
+      console.log('[datatables] update tables options or data.');
+      let options = {
+        ajax: (arg1, callback, settings)=>{
+          console.log('[datatables] fetch data');
+          new Promise(async (resolve, reject)=>{
+            if(typeof data !== 'function') {
+              resolve(data);
+            } else {
+              try {
+                resolve(await data());
+              } catch(e) {
+                reject(e);
+              }
             }
-          }
-        }).then(data=>{
-          console.log('data_complete', data);
-          callback({data:data});
-          dispatcher('data_completed', data);
-        }).catch(reason=>{
-          console.log('data_failed', reason);
-          callback({data:[]})
-          dispatcher('data_failed', reason);
-        });
-      },
-      initComplete: ()=>{
-        dispatcher('datatables_completed');
-      },
-      autoWidth: autoWidth,
-      info: info,
-      select: select,
-      columns: columns,
-      pageLength: pageLength,
-      lengthMenu: lengthMenu,
-      paging: paging,
-      pagingType: pagingType,
-      order: order,
-      language: assign({}, DEFAULT_LANGUAGE, language),
-      scrollX: true,
-      search: {
-        search: searchText
-      },
-      tabIndex: tabIndex,
-      createdRow: createdRow,
-      footerCallback: footerCallback
-    });
-    api.on('select', (e, dt, type, indexes)=>{
-      log("select", e, "type: ", type, " indexes: ", indexes);
-      indexes.forEach(i=>{
-        let row = dt.row(i)
-        let data = row.data();
-        data._sort = 1;
-        row.data(data);
+          }).then(data=>{
+            console.log('[datatables] data_complete', data);
+            callback({data:data});
+            dispatcher('data_completed', data);
+          }).catch(reason=>{
+            console.log('[datatables] data_failed', reason);
+            callback({data:[]})
+            dispatcher('data_failed', reason);
+          });
+        },
+        autoWidth: autoWidth,
+        info: info,
+        select: select,
+        columns: columns,
+        pageLength: pageLength,
+        lengthMenu: lengthMenu,
+        paging: paging,
+        pagingType: pagingType,
+        order: order,
+        language: assign({}, DEFAULT_LANGUAGE, language),
+        search: {
+          search: searchText
+        },
+        tabIndex: tabIndex,
+        createdRow: createdRow,
+        footerCallback: footerCallback
+      };
+      console.log('[datatables] recreate datatables instance.');
+      destroyDataTables();
+      console.log('[datatables] create new instance', options);
+      api = new DataTables(container, options);
+      api.on('click', 'tbody td', (ev)=>{
+        let row = api.row(ev.target);
+        if(row.length > 0) {
+          console.log('[datatables] row clicked', row.data());
+          dispatcher('rowclick', row.data());
+        }
       });
-    }).on('deselect', (e, dt, type, indexes)=>{
-      log("deselect", e, "type: ", type, " indexes: ", indexes);
-      indexes.forEach(i=>{
-        let row = dt.row(i)
-        let data = row.data();
-        delete data._sort;
-        row.data(data);
-      });
-    });
+    }
   }
 </script>
 
-<table bind:this="{container}" class="table table-bordered table-striped table-selectable"></table>
+<style lang="css">
+  @import url('~/node_modules/datatables.net-bs4/css/dataTables.bootstrap4.css');
+  @import url('~/node_modules/datatables.net-select-bs4/css/select.bootstrap4.css');
+</style>
+
+<table bind:this="{container}" class="table table-bordered table-striped"></table>
