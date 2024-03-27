@@ -1,4 +1,4 @@
-'use script';
+'use strict';
 import route, { router, toRegexp, match, configure as rawthConfigure} from 'rawth';
 import { tick } from 'svelte';
 import { writable } from 'svelte/store';
@@ -74,12 +74,7 @@ function navigate(path, silently) {
     } else {
       window.history.pushState(null, null, path);
     }
-    try {
-      router.push(path);
-    } catch(e) {
-      alert('[SPA]routing error');
-      console.error('[router] fail to route.', path, e);
-    }
+    router.push(path);
   });
 }
 

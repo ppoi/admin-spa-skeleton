@@ -1,5 +1,7 @@
 'use strict';
 
+import { NotImplemented } from "../errors";
+
 /**
  * ユーザ情報
  * @interface
@@ -12,7 +14,7 @@ class User {
 }
 
 /**
- * @callback stateChnageCallback
+ * @callback stateChangeCallback
  * @param {string} state
  */
 
@@ -23,16 +25,19 @@ class User {
 class Session {
 
   /**
-   * @type {stateChnageCallback}
+   * セッション状態の変更を受け取るリスナー関数
+   * @param {stateChangeCallback} listener
    */
-  listener = null;
+  set listener(listener) {
+    throw new NotImplemented();
+  }
 
   /**
    * ユーザ情報
    * @returns {User}
    */
   get user() {
-    return null;
+    throw new NotImplemented();
   }
 
   /**
@@ -45,42 +50,34 @@ class Session {
 
   /**
    * 認証処理中かどうかを判定します。
-   * @returns {Promise} 認証処理中の場合認証フローを続行
+   * @returns {boolean} 認証処理を完了した場合true
    */
-  checkAuthenticationProceeding() {
-    return new Promise((resolve, reject)=>{
-      reject(false);
-    });
+  async checkAuthenticationProceeding() {
+    throw new NotImplemented();
   }
 
   /**
    * ユーザ認証を実行します
-   * @returns {Promise}
    */
-  authenticate() {
-    return new Promise((resolve, reject)=>{
-      reject(false);
-    });
+  async authenticate() {
+    throw new NotImplemented();
   }
 
   /**
    * セッションをログアウトします
-   * @returns {Promise}
    */
-  logout() {
-    return new Promise((resolve, reject)=>{
-      reject();
-    });
+  async logout() {
+    throw new NotImplemented();
   }
 
   /**
    * API呼び出し
    * @param {string} path APIパス
    * @param {Object<string, (Object<string, string>|string)} [options] fetchオプション
-   * @returns {Promise<Response>}
+   * @returns {Response}
    */
-  callApi(path, options) {
-    return fetch(`${env.API_ENDPOINT}${path}`, options);
+  async callApi(path, options) {
+    throw new NotImplemented();
   }
 }
 

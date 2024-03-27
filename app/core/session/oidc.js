@@ -1,12 +1,13 @@
 'use strict';
 
-import { merge } from 'lodash-es';
+import { isEmpty, merge } from 'lodash-es';
+import { jsonApi } from '../utils';
 import env from '~/app/core/env';
 import {User, Session} from './types'
+import { AppError, NotImplemented } from '../errors';
 
-const TOKEN_STORE_KEY = 'SPA_AUTH_TOKEN';
-const AUTH_STATE_KEY = 'SPA_AUTH_STATE';
-const AUTH_INITIAL_URL_KEY = 'SPA_AUTH_INITIAL_URL';
+const AUTH_STATE_KEY = 'AUTH_STATE';
+const AUTH_INITIAL_URL_KEY = 'AUTH_INITIAL_URL';
 
 /**
  * 認可トークン
@@ -44,155 +45,133 @@ class OidcUser extends User {
 class OidcSession extends Session {
 
   /**
+   * @type {import('./types').stateChangeCallback}
+   */
+  listener;
+
+  /**
    * @type {OidcUser}
    */
-  #user = null;
+  user;
 
   /**
    * @type {AuthToken}
    */
-  #token = null;
+  token;
 
-  constructor() {
+  /**
+   * @type {TokenStore}
+   */
+  tokenStore;
+
+  /**
+   * @type {OidcIdp}
+   */
+  oidc;
+
+  /**
+   * @param {OidcIdp} oidc 
+   * @param {import('../bootstrap').SessionConf} conf
+   */
+  constructor(oidc, conf) {
     super();
+    this.oidc = oidc;
+    this.tokenStore = new WebStorageTokenStore(`${conf.tokenStore}Storage`);
   }
 
+  /**
+   * @override
+   */
+  set listener(listener) {
+    this.listener = listener;
+  }
+
+  /**
+   * @override
+   */
   get user() {
-    return this.#user;
+    return this.user;
   }
 
   /**
-   * @returns {Promise}
    */
-  #completeAuthentication() {
-    return new Promise((resolve, reject)=>{
-      this.fetchUserInfo().then(user=>{
-        this.#user = user;
-        console.log('[session] complete authentication')
-        if(typeof this.listener === 'function') {
-          console.log('[session] execute callback');
-          this.listener();
-        }
-        resolve();
-      }).catch(reject);
-    });
-  }
-
-  /**
-   * 認証処理中かどうかを判定します。
-   * @returns {Promise} 認証処理中の場合認証フローを続行
-   */
-  checkAuthenticationProceeding() {
-    return new Promise((resolve, reject)=>{
-      let state = sessionStorage.getItem(AUTH_STATE_KEY);
-      if(state != null) {
-        // 認証フロー中
-        let initialURL = sessionStorage.getItem(AUTH_INITIAL_URL_KEY);
-        let params = new URLSearchParams(window.location.search);
-        console.log('[session] authenticated.', state, initialURL, params);
-        sessionStorage.removeItem(AUTH_STATE_KEY);
-        sessionStorage.removeItem(AUTH_INITIAL_URL_KEY);
-        exchangeToken(params.get('code')).then(token=>{
-          console.log('[session] exchanged. replace url', initialURL);
-          localStorage.setItem(TOKEN_STORE_KEY, JSON.stringify(token));
-          this.#token = token;
-          this.#completeAuthentication().then(()=>{
-            window.history.replaceState(null, null, initialURL);
-            resolve(true);
-          }).catch(reject);
-        }).catch(e=>{
-          console.log('[session] unexpected error ocurred in code exchanging', e);
-          reject({
-            type: 'session',
-            message: e
-          });
-        });
-      } else {
-        resolve(false);
-      };
-    });
-  }
-
-  /**
-   * ユーザ認証を実行します
-   * @returns {Promise}
-   */
-  authenticate() {
-    let state = sessionStorage.getItem(AUTH_STATE_KEY);
-    let token = localStorage.getItem(TOKEN_STORE_KEY);
-
-    // 認証画面表示(初回)
-    if(state == null && token == null) {
-      sessionStorage.setItem(AUTH_STATE_KEY, 'ella');
-      sessionStorage.setItem(AUTH_INITIAL_URL_KEY, window.location.href);
-      let params = new URLSearchParams();
-      params.append('response_type', 'code');
-      params.append('client_id', env.AUTH_CLIENT_ID);
-      params.append('redirect_uri', env.BASE_URL);
-      params.append('scope', 'openid');
-      params.append('identity_provider', 'COGNITO');
-      window.location.href = `${env.AUTH_ENDPOINT}/login?${params.toString()}`;
-      return null;
+  dispatchStateChange() {
+    if(typeof this.listener === 'function') {
+      console.log('[session] execute callback');
+      this.listener();
     }
-
-    // 認証済
-    return new Promise((resolve, reject)=>{
-      console.log('[session] already authenticated.');
-      refreshToken(JSON.parse(token)).then(refreshedToken=>{
-        this.#token = refreshedToken;
-        this.#completeAuthentication().then(resolve).catch(reject);
-      }).catch(e=>{
-        if(e.reason != null && e.reason.status === 400) {
-          console.log('[session] stored session is expired');
-          sessionStorage.removeItem(AUTH_STATE_KEY);
-          localStorage.removeItem(TOKEN_STORE_KEY);
-          this.authenticate();
-        } else {
-          reject(e);
-        }
-      });
-    });
-  }
-
-  logout() {
-    return new Promise((resolve, reject)=>{
-      if(this.#token == null) {
-        resolve();
-        return;
-      }
-      let params = new URLSearchParams();
-      params.append('client_id', env.AUTH_CLIENT_ID);
-      params.append('token', this.#token.refresh_token);
-      fetch(`${env.AUTH_ENDPOINT}/oauth2/revoke`, {
-        method: 'post',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: params.toString()
-      }).then(()=>{
-        localStorage.removeItem(TOKEN_STORE_KEY);
-        this.#user = null;
-        console.log('[session] loggged out.')
-        if(typeof this.listener === 'function') {
-          console.log('[session] execute callback');
-          this.listener();
-        }
-        resolve();
-      }).catch((e)=>{
-        reject(e);
-        console.error(e);
-      });
-    });
   }
 
   /**
-   * ユーザ情報を取得します
-   * @returns {Promise<User>}
    */
-  fetchUserInfo() {
-    return new Promise((resolve, reject)=>{
-      callUserinfoEndpoint(this.#token).then(resolve).catch(reject)
-    });
+  async completeAuthentication() {
+    this.user = await this.oidc.fetchUserinfo(this.token);
+    console.log('[session] complete authentication')
+    this.dispatchStateChange();
+  }
+
+  /**
+   * @override
+   */
+  async checkAuthenticationProceeding() {
+    let state = sessionStorage.getItem(AUTH_STATE_KEY);
+    if(state != null) {
+      // 認証フロー中
+      let initialURL = sessionStorage.getItem(AUTH_INITIAL_URL_KEY);
+      sessionStorage.removeItem(AUTH_STATE_KEY);
+      sessionStorage.removeItem(AUTH_INITIAL_URL_KEY);
+      let params = new URLSearchParams(window.location.search);
+
+      let code = params.get('code');
+      if(code == null) {
+        console.log('[session] authentication flow canceled.', state, initialURL, params);
+        throw new AppError('session', `unexpected response parameters: ${params.toString()}`);
+      }
+      console.log('[session] authenticated.', state, initialURL, params);
+      this.token = await this.oidc.exchangeToken(params.get('code'));
+      await this.completeAuthentication();
+      await this.tokenStore.store(this.token);
+      window.history.replaceState(null, null, initialURL);
+      console.log('[session] exchanged. replace url', initialURL);
+      return true;
+    } else {
+      // 認証済み
+      let token = await this.tokenStore.get();
+      if(token != null) {
+        this.token = await this.oidc.refreshToken(token);
+        if(this.token == null) {
+          console.log('[session] session expired.');
+          await this.tokenStore.cleare();
+        } else {
+          await this.tokenStore.store(this.token);
+          await this.completeAuthentication();
+          console.log('[session] session recovery completed.', this.user);
+        }
+      }
+      return false;
+    }
+  }
+
+  /**
+   * @override
+   */
+  async authenticate() {
+    await this.tokenStore.cleare();
+    sessionStorage.setItem(AUTH_STATE_KEY, 'ella');
+    sessionStorage.setItem(AUTH_INITIAL_URL_KEY, location.href);
+    await this.oidc.authenticate();
+  }
+
+  /**
+   * @override
+   */
+  async logout() {
+    if(this.token != null) {
+      await this.tokenStore.cleare();
+      await this.oidc.signOut(this.token);
+      this.token = null;
+      this.dispatchStateChange();
+    }
   }
 
   /**
@@ -201,153 +180,258 @@ class OidcSession extends Session {
    * @param {Object<string, (Object<string, string>|string)} [options] fetchオプション
    * @returns {Promise<Response>}
    */
-  callApi(path, options) {
-    return new Promise((resolve, reject)=>{
-      refreshToken(this.#token).then((token)=>{
-        this.#token = token;
-        fetch(`${env.API_ENDPOINT}${path}`, merge({
-          method: 'get',
-          mode: 'cors',
-          headers: {
-            Authorization: token.id_token
-          }
-        }, options)).then(resolve).catch(reject);
-      }).catch(e=>{
-        reject(e);
-      })
-    });
+  async callApi(path, options) {
+    await this.oidc.refreshToken(this.token);
+    this.tokenStore.store(this.token);
+    return fetch(`${env.API_ENDPOINT}${path}`, merge({
+      method: 'get',
+      headers: {
+        Authorization: `Bearer ${token.access_token}`
+      }
+    }, options)).then(resolve).catch(reject);
   }
 }
 
+/**
+ * OIDC構成情報
+ * @typedef {Object} OidcConfiguration
+ * @property authorization_endpoint
+ * @property token_endpoint
+ * @property userinfo_endpoint
+ * @property revocation_endpoint
+ * @property end_session_endpoint
+ */
+
 
 /**
- * 認証コードから認可トークンを取得
- * @param {string} code 
- * @returns {Promise<AuthToken>}
+ * OIDC IdP操作クラス
  */
-function exchangeToken(code) {
-  console.log('[session] exchange authentication code to authorization token', code);
-  return issueToken({grant_type: 'authorization_code', code: code});
-}
+class OidcIdp {
 
-/**
- * トークン更新
- * @param {AuthToken} token 現在の認証トークン
- * @returns {Promise<AuthToken>}
- */
-function refreshToken(token) {
-  console.log('[session] refresh token', token);
-  let refreshToken = token.refresh_token;
-  return new Promise((resolve, reject)=>{
-    issueToken({grant_type: 'refresh_token', refresh_token: refreshToken}).then(refreshed=>{
-      refreshed.refresh_token = refreshToken;
-      localStorage.setItem(TOKEN_STORE_KEY, JSON.stringify(refreshed));
-      console.log('[session] token refreshed')
-      resolve(refreshed);
-    }).catch(e=>{
-      reject(e);
-    });
-  });
-}
+  /**
+   * @type {OidcConfiguration}
+   */
+  #config = {};
 
-/**
- * Cognitoトークンエンドポイント呼び出し
- * @param {Object<string, (string|Object<string, string>)>} options 
- * @returns {Promise<AuthToken>} 認可トークン
- */
-function issueToken(options) {
-  let params = new URLSearchParams();
-  params.set('client_id', env.AUTH_CLIENT_ID);
-  params.set('redirect_uri', env.BASE_URL);
-  for(let key in options) {
-    params.set(key, options[key]);
+  constructor(config) {
+    merge(this.#config, config);
+    Object.freeze(this.#config);
   }
-  return new Promise((resolve, reject)=>{
-    fetch(`${env.AUTH_ENDPOINT}/oauth2/token`, {
+
+  /**
+   * @returns {OidcConfiguration}
+   */
+  get config() {
+    return this.#config;
+  }
+
+  /**
+   * OIDCエンドポイント呼び出し
+   * @param {string} endpoint エンドポイント種別
+   * @param {*} options
+   * @returns {Promise<Respone>}
+   */
+  async callOidcEndpoint(endpoint, options) {
+    let endpointURL = this.config[endpoint];
+    if(typeof endpointURL === 'string') {
+      console.log('[session] call oidc endpoint:', endpoint, endpointURL)
+      return fetch(this.config[endpoint], options);
+    } else {
+      console.error('[session] invalid endpoint type.', endpoint);
+      throw new AppError('oidc', `invalid endpoint type. ${endpoint}`);
+    }
+  }
+
+  /**
+   * 認証エンドポイントに遷移します
+   */
+  async authenticate() {
+    sessionStorage.setItem(AUTH_STATE_KEY, 'ella');
+    sessionStorage.setItem(AUTH_INITIAL_URL_KEY, window.location.href);
+    let url = new URL(this.config.authorization_endpoint);
+    url.searchParams.append('response_type', 'code');
+    url.searchParams.append('client_id', env.AUTH_CLIENT_ID);
+    url.searchParams.append('redirect_uri', env.BASE_URL);
+    url.searchParams.append('scope', env.AUTH_OIDC_SCOPES);
+    window.location.href = url;
+  }
+
+  /**
+   * サインアウト
+   * @param {AuthToken} token 
+   */
+  async signOut(token) {
+    let url = new URL(this.config.end_session_endpoint);
+    url.searchParams.append('client_id', env.AUTH_CLIENT_ID);
+    url.searchParams.append('id_token_hint', token.id_token);
+    url.searchParams.append('post_logout_redirect_uri', env.BASE_URL);
+    location.href = url;
+  }
+
+  /**
+   * トークンエンドポイント呼び出し
+   * @param {Object<string, (string|Object<string, string>)>} options 
+   * @returns {AuthToken} 認可トークン
+   */
+  async issueToken(options) {
+    let params = new URLSearchParams();
+    params.set('client_id', env.AUTH_CLIENT_ID);
+    for(let key in options) {
+      params.set(key, options[key]);
+    }
+    return jsonApi(this.callOidcEndpoint('token_endpoint', {
       method: 'post',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: params.toString()
-    }).then(res=>{
-      if(res.ok) {
-        res.json().then(resolve).catch(e=>{
-          throw {
-            message: 'fail to parse response JSON',
-            cause: e
-          }
-        });
-      } else {
-        res.text().then(message=>{
-          reject({
-            type: 'api',
-            reason: {
-              status: res.status,
-              message: message
-            }
-          });
-        }).catch(e=>{
-          throw {
-            message: 'fail to load body contents',
-            cause: e
-          };
-        });
-      }
-    }).catch(e=>{
-      reject({
-        'type': 'api',
-        'reason': e
-      });
-    });
-  });
-}
+    }), {400: (res, data)=>null});
+  }
 
+  /**
+   * 認証コードから認可トークンを取得
+   * @param {string} code 
+   * @returns {AuthToken} 認可トークン
+   */
+  async exchangeToken(code) {
+    console.log('[session] exchange authentication code to authorization token', code);
+    return this.issueToken({grant_type: 'authorization_code', code: code, redirect_uri: env.BASE_URL});
+  }
 
-/**
- * @param {AuthToken} token 認証トークン
- * @returns {Promise<OidcUser>}
- */
-function callUserinfoEndpoint(token) {
-  return new Promise((resolve, reject)=>{
-    fetch(`${env.AUTH_ENDPOINT}/oauth2/userInfo`, {
+  /**
+   * トークン更新
+   * @param {AuthToken} token 現在の認証トークン
+   * @returns {AuthToken} 更新後の認証トークン
+   */
+  async refreshToken(token) {
+    console.log('[session] refresh token', token);
+    let refreshed = await this.issueToken({grant_type: 'refresh_token', refresh_token: token.refresh_token});
+    if(refreshed != null) {
+      console.log('[session] token refreshed')
+      return merge(token, refreshed);
+    } else {
+      console.log('[session] token expired.');
+      return null;
+    }
+  }
+
+  /**
+   * @param {AuthToken} token 認証トークン
+   * @returns {Promise<OidcUser>}
+   */
+  async fetchUserinfo(token) {
+    let data = await jsonApi(this.callOidcEndpoint('userinfo_endpoint', {
       headers: {
         'Authorization': `Bearer ${token.access_token}`
       }
-    }).then((res)=>{
-      if(res.ok) {
-        res.json().then((data)=>{
-          let use = new OidcUser(data.username, data.email);
-          resolve(use);
-        }).catch(e=>{
-          throw e;
-        });
-      } else {
-        res.text().text((message)=>{
-          reject({
-            type: 'auth',
-            reason: {
-              status: res.status,
-              message: message
-            }
-          });
-        }).catch(e=>{
-          throw e;
-        });
-      }
-    }).catch(e=>{
-      reject({
-        type: 'auth',
-        reason: e
-      });
-    });
-  });
+    }));
+    return new OidcUser(data.username || data.sub, data.email);
+  }
+
+  /**
+   * well-known openid-configuration URL
+   * @param {(URL|string)} url 
+   * @returns {OidcIdp}
+   */
+  static async discovery(url) {
+    console.log('[session] fetch well-known openid-configration from', url);
+    let config = await jsonApi(fetch(url));
+    console.log('[session] oidc configuration', config);
+    return new OidcIdp(config);
+  }
+}
+
+/**
+ * トークンストア
+ */
+class TokenStore {
+  /**
+   * トークンを保存します
+   * @param {AuthToken} token 
+   */
+  async store(token) {
+    throw new NotImplemented();
+  }
+
+  /**
+   * トークンを取得します
+   */
+  async get() {
+    throw new NotImplemented();
+  }
+
+  /**
+   * トークンを削除します
+   */
+  async cleare() {
+    throw NotImplemented();
+  }
+}
+
+/**
+ * Web Storage トークンストア
+ */
+class WebStorageTokenStore extends TokenStore {
+
+  static #TOKEN_KEY = 'AUTH_TOKEN';
+
+  /**
+   * @type {Storage}
+   */
+  #storage;
+
+  /**
+   * @type {AuthToken}
+   */
+  #token;
+
+  /**
+   * @param {'sessionStorage'|'localStorage'} type 
+   */
+  constructor(type) {
+    super();
+    this.#storage = window[type]
+    let token = this.#storage.getItem(WebStorageTokenStore.#TOKEN_KEY);
+    if(!isEmpty(token)) {
+      this.#token = JSON.parse(token);
+    }
+  }
+
+  /**
+   * @override
+   */
+  async get() {
+    return this.#token;
+  }
+
+  /**
+   * @override
+   */
+  async store(token) {
+    this.#token = token;
+    this.#storage.setItem(WebStorageTokenStore.#TOKEN_KEY, JSON.stringify(token));
+  }
+
+  /**
+   * @override
+   */
+  async cleare() {
+    this.#storage.removeItem(WebStorageTokenStore.#TOKEN_KEY);
+  }
 }
 
 /**
  * OIDCセッションインスタンスを生成します
+ * @param {import("../bootstrap").SessionConf} conf
  */
-export default ()=>new OidcSession;
+export default async (conf)=>{
+  console.log('[session] create session instance', env, conf);
+  return new OidcSession(await OidcIdp.discovery(env.AUTH_OIDC_DISCOVERY_URL), conf);
+};
 export {
   OidcUser,
-  OidcSession
+  OidcSession,
+  OidcIdp,
+  TokenStore,
+  WebStorageTokenStore
 }

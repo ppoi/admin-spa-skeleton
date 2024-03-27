@@ -1,22 +1,23 @@
 'use strict';
 
-import { bootstrap } from './core/env';
-import session from './core/session';
-import App from './app.svelte';
+import bootstrap from "./core/bootstrap";
+import * as oidc from "./core/session/oidc";
+import * as app from './app.svelte';
 
-bootstrap(new URL('env.json', document.baseURI)).then(async ()=>{
-  await session.checkAuthenticationProceeding();
-  await session.authenticate();
-
-  let container = document.querySelector('#app');
-  if(container == null) {
-    container = document.body.appendChild(document.createElement('div'));
-  }
-  container.textContent = '';
-  new App({
-    target: container,
-  });  
-}).catch(e=>{
-  console.error('fail to initialize app.', e);
+try {
+  /** @typeof {import(./core/bootstrap).CoreConf} */
+  await bootstrap({
+    envDef: import.meta.env.VITE_ENV_URL,
+    session: {
+      module: oidc,
+      tokenStore: 'local'
+    },
+    application: {
+      target: '#app',
+      rootTag: app
+    }
+  });
+} catch(e) {
+  console.error('[main] fail to initialize app.', e);
   alert('fail to initialize app.');
-});
+}

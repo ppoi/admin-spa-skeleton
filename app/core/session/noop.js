@@ -4,7 +4,32 @@ import { Session } from "./types";
 import env from "../env";
 
 class NoopSession extends Session {
+
+
+  /** @type {import("./types").User} */
   #user = null;
+
+  /**
+   * @type {import("./types").stateChangeCallback}
+   */
+  listener;
+
+  /**
+   * @override
+   */
+  set listener(listener) {
+    this.listener = listener;
+  }
+
+  /**
+   * リスナーにセッション状態の変更を通知します
+   */
+  dispatchStateChange() {
+    if(typeof this.listener === 'function') {
+      console.log('[session] execute callback');
+      this.listener();
+    }
+  }
 
   /**
    * @override
@@ -16,40 +41,30 @@ class NoopSession extends Session {
   /**
    * @override
    */
-  checkAuthenticationProceeding(){
-    new Promise((resolve, reject)=>{
-      resolve();
-    });
+  async checkAuthenticationProceeding(){
   }
 
   /**
    * @override
    * @returns {Promise}
    */
-  authenticate() {
-    return new Promise((resolve, reject)=>{
-      #user = new {id:'dummy', username:'dummy'}
-      this.listener();
-      resolve();
-    });
+  async authenticate() {
+    this.#user = new {id:'dummy', username:'dummy'}
   }
 
   /**
    * @override
    * @returns {Promise}
    */
-  logout() {
-    return new Promise((resolve,reject)=>{
-      #user = null;
-      this.listener();
-      resolve();
-    });
+  async logout() {
+    this.#user = null;
+    this.dispatchStateChange();
   }
 
   /**
    * @override
    */
-  callApi(path, options) {
+  asynccallApi(path, options) {
     return fetch(`${env.API_ENDPOINT}${path}`, options);
   }
 }

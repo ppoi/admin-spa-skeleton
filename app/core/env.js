@@ -7,23 +7,26 @@ import { assign, isEmpty } from 'lodash-es';
  * @typedef {Object} AppEnv
  * @property {string} BASE_URL SPAベースURL
  * @property {string} [API_ENDPOINT] APIエンドポイントURL
- * @property {string} [AUTH_ENDPOINT] 認証エンドポイントURL
- * @property {string} [AUTH_CLIENT_ID] CongnitoユーザプールクライアントID
+ * @property {string} [AUTH_OIDC_DISCOVERY_URL] OIDC構成情報URL
+ * @property {string} [AUTH_OIDC_SCOPES] OIDC scope
+ * @property {string} [AUTH_CLIENT_ID] 認証クライアントID
+ * @property {string} [AUTH_SESSION_STORE] 認証セッションストア
  */
+const env = {};
+
 /**
  * 環境情報
  * @type {AppEnv}
  */
-const env = {};
 export default env;
 
 /**
  * 環境情報の初期化
- * @param {string|URL|Object} definition 環境情報取得元。値が文字列またはURLの場合は指定されたURLからfetchで取得します。Objectの場合、指定されたオブジェクトを環境情報として設定します。省略した場合、{document.baseURI}/env.jsonを参照します。
+ * @param {(string|URL|AppEnv)} definition 環境情報取得元。値が文字列またはURLの場合は指定されたURLからfetchで取得します。Objectの場合、指定されたオブジェクトを環境情報として設定します。省略した場合、{document.baseURI}/env.jsonを参照します。
  * @param {Object} [defaults] definitionからのデータ取得に失敗した場合のデフォルト値。未設定の場合、Promiseはrejectになります。
  * @returns {Promise<AppEnv>}
  */
-export function bootstrap(definition = new URL('env.json', document.baseURI), defaults) {
+export function __setup__(definition = new URL('env.json', document.baseURI), defaults) {
   return new Promise((resolve, reject)=>{
     if(definition == null) {
       reject({
