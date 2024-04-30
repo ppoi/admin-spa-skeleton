@@ -1,0 +1,15 @@
+FROM mcr.microsoft.com/devcontainers/base:ubuntu
+
+RUN apt-get -y update
+RUN apt-get -y install curl ca-certificates zip unzip
+RUN apt-get -y upgrade --no-install-recommends
+RUN apt-get autoremove -y
+RUN rm -rf /var/lib/apt-lists/*
+RUN curl -fsSL https://raw.githubusercontent.com/tj/n/master/bin/n | bash -s lts
+RUN npm install -g n
+
+USER vscode
+RUN git config --global http."https://cba.deplas.itg.hitachi.co.jp".sslKey /certs/deplas.pk
+RUN git config --global http."https://cba.deplas.itg.hitachi.co.jp".sslCert /certs/deplas.crt
+RUN git config --global http."https://cba.deplas.itg.hitachi.co.jp".sslCertPasswordProtected false
+VOLUME /workspaces

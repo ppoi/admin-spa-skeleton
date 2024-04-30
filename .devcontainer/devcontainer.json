@@ -1,19 +1,15 @@
 {
   "name": "admin-spa-skeleton",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
-  "features": {
-    "ghcr.io/devcontainers-contrib/features/apt-get-packages": {
-      "packages": "curl,ca-certificates,zip,unzip"
-    },
-    "ghcr.io/ppoi/devcontainer-features/n-install:latest": "lts"
-  },
+  "dockerFile": "Containerfile-node",
   "customizations": {
     "vscode": {
       "extensions": [
         "svelte.svelte-vscode",
-        "antfu.vite",
         "redhat.vscode-yaml"
       ]
     }
+  },
+  "containerEnv": {
+    "HOME": "/home/vscode"
   }
 }
