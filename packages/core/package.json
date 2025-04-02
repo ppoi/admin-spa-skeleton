@@ -1,0 +1,25 @@
+{
+  "name": "@admin-spa-skeleton/core",
+  "version": "1.0.0",
+  "description": "SPA Core",
+  "type": "module",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ppoi/admin-spa-skeleton.git",
+    "directory": "packages/core"
+  },
+  "author": "PPOI <ppoi@tsukuba-bunko.org>",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": "./lib/index.js",
+    "./router": "./lib/router.js",
+    "./session/modules": "./src/session/modules.js"
+  },
+  "dependencies": {
+    "lodash-es": "^4.17.21",
+    "path-to-regexp": "^8.2.0",
+    "rawth": "^3.0.0",
+    "svelte": "^5.25.5"
+  }
+}

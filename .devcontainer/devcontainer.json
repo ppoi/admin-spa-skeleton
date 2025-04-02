@@ -1,18 +1,12 @@
 {
   "name": "admin-spa-skeleton",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
-  "features": {
-    "ghcr.io/devcontainers-contrib/features/apt-get-packages": {
-      "packages": "curl,ca-certificates,zip,unzip"
-    },
-    "ghcr.io/ppoi/devcontainer-features/n-install:latest": "lts"
-  },
+  "image": "ghcr.io/ppoi/devcontainer-images/type-alpha:20250306",
   "customizations": {
     "vscode": {
       "extensions": [
         "svelte.svelte-vscode",
-        "antfu.vite",
-        "redhat.vscode-yaml"
+        "redhat.vscode-yaml",
+        "eamodio.gitlens"
       ]
     }
   }
