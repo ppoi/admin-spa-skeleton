@@ -14,8 +14,12 @@
   "exports": {
     ".": "./lib/index.js",
     "./router": "./lib/router.js",
-    "./session/modules": "./src/session/modules.js"
+    "./session/modules": "./lib/session/modules.js",
+    "./style/*.scss": "./style/*.scss"
   },
+  "files": [
+    "style"
+  ],
   "dependencies": {
     "lodash-es": "^4.17.21",
     "path-to-regexp": "^8.2.0",

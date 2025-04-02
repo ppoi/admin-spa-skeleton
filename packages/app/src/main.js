@@ -1,11 +1,12 @@
 'use strict';
 
-import { bootstrap, session } from '@admin-spa-skeleton/core';
+import { bootstrap, session, loading } from '@admin-spa-skeleton/core';
 import { cognito } from '@admin-spa-skeleton/core/session/modules';
 import { mount } from 'svelte';
 import app from './app.svelte';
 
 try {
+  loading(true);
   await bootstrap({
     envDef: import.meta.env.VITE_ENV_URL,
     sessionDef: {
@@ -13,6 +14,8 @@ try {
       tokenStore: 'local'
     }
   });
+  loading(false);
+
   mount(app, {
     target: document.querySelector('#app')
   });
